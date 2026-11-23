@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   Check,
   ExternalLink,
@@ -6,7 +7,9 @@ import {
   HardDrive,
   Lock,
   MessageCircle,
+  Search,
   ShieldCheck,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { JobLinkOpener } from '@/components/JobLinkOpener';
@@ -156,6 +159,13 @@ export default function LandingPage() {
             <a href="#security" className="transition-colors hover:text-vault-ink">
               ความปลอดภัย E2E &amp; PDPA
             </a>
+            <Link
+              href="/vault/demo-family-archive?demo=1"
+              className="inline-flex items-center gap-1.5 font-semibold text-vault-emerald transition-colors hover:text-teal-800"
+            >
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>AI Search Vault</span>
+            </Link>
           </nav>
 
           <a
@@ -510,6 +520,44 @@ export default function LandingPage() {
                   </span>
                   เมื่อปิดงาน ระบบจะทำลายไฟล์พักและคุกกี้ทั้งหมดพร้อมออกใบรับรอง PDPA ที่พิมพ์เก็บได้
                 </p>
+              </div>
+            </div>
+
+            {/* Flagship Add-on: Zero-Knowledge Encrypted AI Search Vault */}
+            <div
+              id="ai-search-vault"
+              className="mt-8 rounded-2xl border border-teal-200 bg-vault-surface p-6 shadow-vault-elevated sm:p-8"
+            >
+              <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
+                <div className="space-y-3 lg:col-span-8">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-vault-emerald-soft px-3 py-1 text-xs font-semibold text-vault-emerald">
+                    <Search className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Add-on ใหม่ · Zero-Knowledge Encrypted AI Search Vault</span>
+                  </div>
+                  <h3 className="text-xl font-bold tracking-tight text-vault-ink sm:text-2xl">
+                    ค้นหาใบหน้าคน &amp; ข้อความภาษาไทยในภาพ (OCR) ได้ทันที แม้ดูผ่านลิงก์อัลบั้มแชร์
+                  </h3>
+                  <p className="text-sm leading-relaxed text-vault-muted">
+                    หมดปัญหาลิงก์อัลบั้ม Google Photos แชร์ไม่มีช่องค้นหาหน้าคนหรือข้อความในภาพ
+                    ระบบสร้างภาพย่อ WebP (~2.5 GB/แสนภาพ) และดัชนี AI (InsightFace + Thai RapidOCR + CLIP)
+                    แล้วเข้ารหัสทางเดียวด้วย <span className="font-mono text-xs text-vault-ink">RSA-OAEP + AES-256-GCM</span>{' '}
+                    ฝากไว้บน Cloudflare R2 โดยมีเพียงเจ้าของรหัสผ่านเท่านั้นที่ถอดรหัสและค้นหาได้ในเบราว์เซอร์ (Zero-Knowledge)
+                    พร้อมรองรับการสลับแหล่งเปิดภาพจาก Google Photos ไปยัง Home NAS / Immich ในอนาคตโดยไม่ต้องสแกน AI ใหม่
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2.5 lg:col-span-4 lg:items-end">
+                  <Link
+                    href="/vault/demo-family-archive?demo=1"
+                    className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-vault-emerald px-5 py-3 text-sm font-semibold text-white shadow-vault transition-colors hover:bg-teal-800 lg:w-auto"
+                  >
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    <span>ทดลองค้นหา Zero-Knowledge สด</span>
+                  </Link>
+                  <p className="text-center font-mono text-[11px] text-vault-subtle lg:text-right">
+                    WebCrypto RAM Unlock · R2 SigV4 · Pluggable Source
+                  </p>
+                </div>
               </div>
             </div>
           </div>

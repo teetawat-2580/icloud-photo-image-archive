@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-11-23
+
+### Added
+- **Zero-Knowledge Encrypted AI Search Vault (Flagship Add-on — `ADR-0005`)**:
+  - **Supabase Live Schema (`supabase/migrations/002_search_vault.sql`)**: Applied `public.search_vaults` with strict deny-by-default RLS, FK/status indexes (`idx_search_vaults_job_id`, `idx_search_vaults_status`), and hardened `trg_search_vaults_updated_at` trigger on project `zhgyiljmzsjbvlgozpfu`.
+  - **Local PC Transient AI Worker (`workbench/`)**:
+    - `workbench/search_vault_crypto.py`: One-Way Public-Key E2EE (`RSA-OAEP-SHA256` + `AES-256-GCM` + `gzip` + `PBKDF2-SHA256` 600k iterations) with explicit RAM key zeroing and verified binary parity against Browser WebCrypto.
+    - `workbench/media_source_adapter.py`: Pluggable Media Source Adapter decoupling `asset_sha256` from destination links (`google_photos_shared` $\rightarrow$ `google_photos_private` / `nas_immich` / `local_hdd`) with `remap_index_media_source` zero-reindex migration.
+    - `workbench/r2_storage_client.py`: Zero-dependency pure-Python AWS SigV4 client for Cloudflare R2 (Free 10 GB / `$0` egress) plus path-confined `LocalEncryptedNasStorage` (`pc_tunnel_nas` fallback).
+    - `workbench/search_vault_indexer.py`: Transient AI indexing pipeline supporting optional `InsightFace (buffalo_l)` cosine clustering, `RapidOCR / PP-OCRv5` Thai+English OCR, `Multilingual CLIP` bilingual tagging, Pillow WebP thumbnails, ciphertext-only publish, and automatic plaintext purge (`plaintext_purged_at`).
+    - `workbench/search_vault_routes.py` & `workbench/supabase_relay.py`: Added `/api/operator/vaults`, `/api/operator/vaults/{vault_id}/build-index`, and `/api/operator/vaults/{vault_id}/blobs/{object_key:path}` on `127.0.0.1:8790`.
+  - **Browser WebCrypto Client & Next.js Portal (`web/`)**:
+    - `web/src/lib/search-vault-crypto.ts`, `web/src/lib/search-vault-engine.ts`, `web/src/lib/vault-auth.ts`, `web/src/lib/search-vault-demo.ts`: Pure Browser WebCrypto keygen/unlock/decrypt, `< 20 ms` in-RAM Thai OCR + multi-face AND + tag + year search engine, OWASP A03 XSS-safe highlight segmentation & URL allowlisting, scoped object-key validation, and pure-Node Cloudflare R2 SigV4 proxy.
+    - 4 token-authenticated API routes: `/api/vaults/[vaultId]/metadata`, `/api/vaults/[vaultId]/register-keys`, `/api/vaults/[vaultId]/person-labels`, and `/api/vaults/[vaultId]/blob`.
+    - Responsive mobile-first UI (`/vault/[vaultId]`, `VaultPassphraseGate`, `EncryptedSearchVault`) with lazy-decrypted thumbnail grid (`IntersectionObserver` + `ObjectURL` cleanup), inline E2EE person renaming, Pluggable Media Source switcher (`Google Photos` $\leftrightarrow$ `Home NAS / Immich`), 1-tap `Lock Vault` RAM wipe, interactive Live Zero-Knowledge Sandbox (`/vault/demo-family-archive?demo=1`), and Landing Page callout (`web/src/app/page.tsx`).
+  - **Automated Verification**: Added `workbench/tests/test_search_vault.py` (`30/30` Python pytest passing), `web/tests/search-vault.test.mjs` (`8/8` Node WebCrypto/Engine/Auth tests passing), cross-language Python $\leftrightarrow$ WebCrypto binary parity verification, and `docs/adr/0005-zero-knowledge-encrypted-search-vault.md`.
+
 ## [0.1.1] - 2026-11-23
 
 ### Added

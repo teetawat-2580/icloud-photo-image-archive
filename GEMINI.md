@@ -17,8 +17,8 @@
 2. **Strict Localhost Binding (OWASP A01 / A05)**:
    - `workbench/server.py` MUST bind strictly to `127.0.0.1:8790`. Binding to `0.0.0.0` is strictly forbidden.
 3. **Deny-by-Default RLS & Constant-Time Token Verification**:
-   - All 5 Supabase tables (`operator_nodes`, `migration_jobs`, `credential_envelopes`, `otp_challenges`, `job_year_progress`) have Row Level Security enabled with zero `anon` read/write policies.
-   - Customer browsers access data exclusively via Next.js Route Handlers (`/api/jobs/[jobId]/*`), which verify `SHA-256(token)` using `crypto.timingSafeEqual` and never leak `token_hash_sha256` or ciphertext envelopes.
+   - All 6 Supabase tables (`operator_nodes`, `migration_jobs`, `credential_envelopes`, `otp_challenges`, `job_year_progress`, `search_vaults`) have Row Level Security enabled with zero `anon` read/write policies.
+   - Customer browsers access data exclusively via Next.js Route Handlers (`/api/jobs/[jobId]/*` and `/api/vaults/[vaultId]/*`), which verify `SHA-256(token)` using `crypto.timingSafeEqual` and never leak `token_hash_sha256`, `access_token_hash_sha256`, or ciphertext envelopes.
 4. **Per-Customer Isolated Sandboxes & Dedicated Chrome Automation Profiles**:
    - Every job runs inside a path-confined sandbox (`D:\MigrationJobs\<job_id>\`, validated with `Path.resolve().is_relative_to(staging_root)`).
    - Every Google Photos upload launches an isolated Chrome instance via `--user-data-dir=<sandbox>\chrome_profile` and dynamic CDP port `9301..9399` (`0` Chrome `Allow` popups, `0%` cross-customer or personal Chrome contamination).
@@ -34,6 +34,11 @@
    - Google Photos `+` menu actions MUST match single-line exact `Album` only — hard-blocking `Animation`, `Collage`, `Highlight video`, `Shared album`, and `Partner sharing`.
 7. **1-Click PDPA Purge Certificate**:
    - After job completion, the operator triggers `PDPA Purge` to terminate the job's Chrome process, wipe all local staging media, `.icloud_session`, and `chrome_profile`, confirm `0` remaining files, sign an RSA-PSS-SHA256 Purge Certificate, and publish it to Supabase for 24/7 customer download.
+8. **Zero-Knowledge Encrypted AI Search Vault (One-Way Public-Key E2EE & Zero PII in Git)**:
+   - Customer Vault Passphrases and decrypted PKCS#8 private keys exist strictly inside browser RAM (`PBKDF2-SHA256` 600,000 iterations + `AES-256-GCM` + non-extractable WebCrypto `CryptoKey`).
+   - The Operator PC AI Worker (`workbench/search_vault_indexer.py`) wraps its ephemeral 32-byte `vault_data_key` ONE-WAY to `customer_public_key_pem`, encrypts WebP thumbnails and the gzipped Search Index Bundle, uploads ONLY `.enc` ciphertext to Cloudflare R2 / PC Tunnel NAS, zeroes the key in RAM, and purges temporary plaintext media (`plaintext_purged_at`).
+   - Blob proxy endpoints MUST enforce strict `validateVaultObjectKey` confinement (`vaults/<vaultId>/.../*.enc`) and browser media links MUST pass `resolveSafeMediaUrl` HTTPS allowlisting (OWASP A01/A03/A10).
+   - Real family/customer emails, credentials, and unlisted Google Photos share links MUST NEVER be committed to Git (private case-study logs stay strictly inside gitignored `docs/MOM_CASE_STUDY_MIGRATION_LOG.md`).
 
 ---
 

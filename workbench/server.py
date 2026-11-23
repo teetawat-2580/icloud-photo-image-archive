@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 from workbench.crypto_vault import OperatorCryptoVault
 from workbench.icloud_engine import ICloudJobEngine, verify_five_locks
 from workbench.job_sandbox import JobSandboxManager, is_onedrive_path
+from workbench.search_vault_routes import register_search_vault_routes
 from workbench.supabase_relay import SupabaseRelayClient
 
 WORKBENCH_DIR = Path(__file__).resolve().parent
@@ -492,6 +493,16 @@ def create_app(
             "status": "COMPLETED",
             "pdpa_certificate": cert,
         }
+
+    # ------------------------------------------------------------------
+    # Zero-Knowledge Encrypted Search Vault Routes (`002_search_vault.sql`)
+    # ------------------------------------------------------------------
+    register_search_vault_routes(
+        app,
+        relay=relay,
+        sandbox=sandbox,
+        web_base_url=web_base_url,
+    )
 
     # ------------------------------------------------------------------
     # Local Operator Control Panel UI Static Serving

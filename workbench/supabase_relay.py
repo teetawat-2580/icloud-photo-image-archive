@@ -45,6 +45,7 @@ def _empty_local_state() -> dict[str, Any]:
         "credential_envelopes": {},
         "otp_challenges": {},
         "job_year_progress": {},
+        "search_vaults": {},
     }
 
 
@@ -533,3 +534,78 @@ class SupabaseRelayClient:
             "status": "COMPLETED",
         }
         return self.update_job(job_id, patch)
+
+    # ------------------------------------------------------------------
+    # 6. Zero-Knowledge Encrypted Search Vaults (`002_search_vault.sql`)
+    # ------------------------------------------------------------------
+    def create_search_vault(self, vault_record: dict[str, Any]) -> dict[str, Any]:
+        now_iso = _utc_now_iso()
+        record = dict(vault_record)
+        record.setdefault("id", str(uuid.uuid4()))
+        record.setdefault("status", "AWAITING_CUSTOMER_KEY")
+        record.setdefault("storage_backend", "cloudflare_r2")
+        record.setdefault("media_source_type", "google_photos_shared")
+        record.setdefault("media_source_config", {})
+        record.setdefault("created_at", now_iso)
+        record["updated_at"] = now_iso
+
+        if self.online_mode:
+            rows = self._request(
+                "POST",
+                "search_vaults",
+                json_body=record,
+                prefer="return=representation",
+            )
+            if isinstance(rows, list) and rows:
+                return rows[0]
+            return record
+
+        with self._lock:
+            state = self._load_local_state()
+            state.setdefault("search_vaults", {})[record["id"]] = record
+            self._save_local_state(state)
+            return record
+
+    def get_search_vault(self, vault_id: str) -> dict[str, Any] | None:
+        if self.online_mode:
+            rows = self._request("GET", "search_vaults", params={"id": f"eq.{vault_id}", "limit": "1"})
+            return rows[0] if isinstance(rows, list) and rows else None
+
+        with self._lock:
+            state = self._load_local_state()
+            return state.get("search_vaults", {}).get(vault_id)
+
+    def list_search_vaults(self) -> list[dict[str, Any]]:
+        if self.online_mode:
+            rows = self._request("GET", "search_vaults", params={"order": "created_at.desc"})
+            return rows if isinstance(rows, list) else []
+
+        with self._lock:
+            state = self._load_local_state()
+            items = list(state.get("search_vaults", {}).values())
+            items.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+            return items
+
+    def update_search_vault(self, vault_id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+        update_data = dict(patch)
+        update_data["updated_at"] = _utc_now_iso()
+        if self.online_mode:
+            rows = self._request(
+                "PATCH",
+                "search_vaults",
+                params={"id": f"eq.{vault_id}"},
+                json_body=update_data,
+                prefer="return=representation",
+            )
+            return rows[0] if isinstance(rows, list) and rows else None
+
+        with self._lock:
+            state = self._load_local_state()
+            bucket = state.setdefault("search_vaults", {})
+            existing = bucket.get(vault_id)
+            if existing is None:
+                return None
+            existing.update(update_data)
+            bucket[vault_id] = existing
+            self._save_local_state(state)
+            return existing

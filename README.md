@@ -7,11 +7,11 @@ Built for Done-For-You / Concierge photo archiving with **Zero-Password-Storage 
 
 ## Project Layout
 
-- `web/` — Public Cloud Web App (`Next.js 15` App Router, Vercel-ready) with Landing Page (`/`) and Customer Job Portal (`/job/[jobId]?t=<token>`).
-- `workbench/` — Local Operator PC Workbench (`Python FastAPI` on `http://127.0.0.1:8790`) + Operator Control Panel UI.
+- `web/` — Public Cloud Web App (`Next.js 15` App Router, Vercel-ready) with Landing Page (`/`), Customer Job Portal (`/job/[jobId]?t=<token>`), and Zero-Knowledge Encrypted AI Search Vault (`/vault/[vaultId]?t=<token>` plus interactive sandbox `/vault/demo-family-archive?demo=1`).
+- `workbench/` — Local Operator PC Workbench (`Python FastAPI` on `http://127.0.0.1:8790`) + Operator Control Panel UI + Transient Zero-Knowledge AI Search Vault Indexer (`InsightFace` + `RapidOCR PP-OCRv5` + `Multilingual CLIP` + pure-Python Cloudflare R2 SigV4).
 - `workbench/cdp/` — Isolated Per-Customer Dedicated Chrome Profile CDP Uploader (`Node.js 24`).
-- `supabase/migrations/` — Strict-RLS Postgres schema (`001_init_schema.sql`).
-- `docs/adr/` — Architectural Decision Records (`ADR-0001` through `ADR-0004`).
+- `supabase/migrations/` — Strict-RLS Postgres schema (`001_init_schema.sql`, `002_search_vault.sql`).
+- `docs/adr/` — Architectural Decision Records (`ADR-0001` through `ADR-0005`).
 
 ---
 
