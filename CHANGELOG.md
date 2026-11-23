@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file following [Keep 
 - **GitHub + Vercel CI/CD Integration**:
   - Connected repository `https://github.com/teetawat-2580/icloud-photo-image-archive.git` to Vercel project `icloud-photo-image-archive` (`prj_GBsPsqGtEJdVLRxPDZ0JUDuMALRH`) with `rootDirectory = "web"`, `framework = "nextjs"`, `nodeVersion = "24.x"`, `ssoProtection = preview` (public Production access for customers), and Vercel Secret Env Vars for Supabase `zhgyiljmzsjbvlgozpfu`.
 
+### Fixed
+- **`web/src/app/layout.tsx` & `web/tailwind.config.ts`**: Switched Google Fonts (`Plus Jakarta Sans`, `Noto Sans Thai`, `JetBrains Mono`) from build-time `next/font/google` scraper to deterministic preconnected `<link rel="stylesheet">` tags to eliminate `next/font` Google loader regex failures on Vercel Linux builds.
+
 ### Changed
 - **`workbench/server.py`**: Added automatic `_load_workbench_env()` loader for `workbench/.env` on startup without overriding explicit environment variables or unit-test injections.
 - **`workbench/supabase_relay.py`**: Added compatibility for modern Supabase Secret Keys (`sb_secret_...`) using `apikey`-only PostgREST authentication alongside legacy JWT `service_role` keys.

@@ -1,31 +1,8 @@
 import type { Metadata } from 'next';
-import {
-  JetBrains_Mono,
-  Noto_Sans_Thai,
-  Plus_Jakarta_Sans,
-} from 'next/font/google';
 import './globals.css';
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-plus-jakarta',
-  display: 'swap',
-});
-
-const notoSansThai = Noto_Sans_Thai({
-  subsets: ['thai', 'latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-noto-sans-thai',
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-jetbrains-mono',
-  display: 'swap',
-});
+const GOOGLE_FONTS_HREF =
+  'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Thai:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap';
 
 export const metadata: Metadata = {
   title: 'CloudVault Concierge — Selective iCloud Photo Archive & SHA-256 Verification Desk',
@@ -39,10 +16,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="th"
-      className={`${plusJakartaSans.variable} ${notoSansThai.variable} ${jetbrainsMono.variable}`}
-    >
+    <html lang="th">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
+      </head>
       <body className="min-h-screen bg-vault-canvas font-sans text-vault-ink antialiased">
         {children}
       </body>

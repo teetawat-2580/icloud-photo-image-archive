@@ -27,14 +27,14 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          'var(--font-plus-jakarta)',
-          'var(--font-noto-sans-thai)',
+          '"Plus Jakarta Sans"',
+          '"Noto Sans Thai"',
           'system-ui',
           '-apple-system',
           'sans-serif',
         ],
         mono: [
-          'var(--font-jetbrains-mono)',
+          '"JetBrains Mono"',
           'ui-monospace',
           'SFMono-Regular',
           'Menlo',
