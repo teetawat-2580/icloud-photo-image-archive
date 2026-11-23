@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-11-23
+
+### Added
+- **Local Operator Workbench UI — Zero-Knowledge AI Search Vault Tab & Cloudflare R2 Setup Wizard (`http://127.0.0.1:8790/#vaults`)**:
+  - Added primary workspace switcher tabs (`Migration Jobs` / `AI Search Vault`) in `workbench/ui/index.html` + `workbench/ui/styles.css` and modular safe-DOM controller `workbench/ui/vault-ui.js` (zero `innerHTML`, `OWASP A03` compliant).
+  - Added 1-click **Cloudflare R2 (`Free 10 GB · $0 Egress`) Setup & Live Connection Test Wizard** (`GET /api/operator/vaults/r2-status`, `POST /api/operator/vaults/r2-config`, `POST /api/operator/vaults/r2-test`) saving validated keys into local gitignored `workbench/.env` + `web/.env.local` and activating them live in RAM without restart.
+  - Added `PATCH /api/operator/vaults/{vault_id}/media-source` and interactive Year $\rightarrow$ Album URL / Home NAS editor directly inside the Workbench UI.
+  - Updated `CloudflareR2Config.from_env()` in `workbench/r2_storage_client.py` to accept both `R2_ACCOUNT_ID` and `R2_ENDPOINT_URL` seamlessly and added `head_bucket()` live connectivity verification.
+
 ## [0.2.0] - 2026-11-23
 
 ### Added

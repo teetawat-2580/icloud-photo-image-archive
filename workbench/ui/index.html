@@ -31,8 +31,19 @@
           <span id="health-fingerprint">—</span>
         </div>
         <button id="btn-open-create" class="btn btn-primary" type="button">+ สร้างงานลูกค้าใหม่</button>
+        <button id="btn-open-create-vault" class="btn btn-teal" type="button">+ สร้าง AI Search Vault</button>
       </div>
     </header>
+
+    <!-- Primary Workspace Switcher -->
+    <nav class="workspace-tabs" aria-label="สลับโหมดการทำงาน">
+      <button id="tab-migration-jobs" class="workspace-tab active" type="button" aria-pressed="true">
+        งานย้ายภาพลูกค้า (Migration Jobs)
+      </button>
+      <button id="tab-search-vaults" class="workspace-tab" type="button" aria-pressed="false">
+        ตู้นิรภัยค้นหาภาพ AI (Zero-Knowledge Search Vault)
+      </button>
+    </nav>
 
     <div id="onedrive-alert" class="inline-alert hidden" role="alert">
       คำเตือน: โฟลเดอร์ Staging ปัจจุบันอยู่ภายใน OneDrive กรุณาตั้งค่า STAGING_ROOT เป็นไดรฟ์ในเครื่อง เช่น D:\MigrationJobs
@@ -40,7 +51,7 @@
 
     <div id="toast-bar" class="toast-bar hidden" role="status" aria-live="polite"></div>
 
-    <main class="workbench-grid">
+    <main id="view-migration-jobs" class="workbench-grid">
       <!-- Left Rail: Active Customer Jobs -->
       <aside class="jobs-rail" aria-label="รายการงานลูกค้า">
         <div class="rail-header">
@@ -209,6 +220,227 @@
         </div>
       </section>
     </main>
+
+    <!-- Workspace View 2: Zero-Knowledge Encrypted AI Search Vault -->
+    <main id="view-search-vaults" class="workbench-grid hidden" aria-label="จัดการตู้นิรภัยค้นหาภาพ AI">
+      <aside class="jobs-rail" aria-label="รายการตู้นิรภัยค้นหาภาพ">
+        <div class="rail-header">
+          <div>
+            <h2 class="section-heading">รายการ AI Search Vaults</h2>
+            <p class="muted-caption">เข้ารหัสทางเดียว (One-Way Public-Key E2EE)</p>
+          </div>
+          <button id="btn-refresh-vaults" class="btn btn-ghost btn-sm" type="button">รีเฟรช</button>
+        </div>
+
+        <div class="rail-search">
+          <input
+            id="vault-search-input"
+            class="field-input"
+            type="search"
+            placeholder="ค้นหาชื่อเจ้าของคลัง หรือรหัส Vault..."
+            aria-label="ค้นหาตู้นิรภัย"
+          >
+        </div>
+
+        <div id="vaults-list" class="jobs-list" role="listbox" aria-label="รายการตู้นิรภัยทั้งหมด"></div>
+      </aside>
+
+      <section class="job-desk" aria-label="แผงควบคุมตู้นิรภัยและ Cloudflare R2">
+        <div class="desk-content">
+          <!-- Cloudflare R2 (Free 10 GB, $0 Egress) Configuration Card -->
+          <section id="r2-config-card" class="vault-card r2-card" aria-label="ตั้งค่า Cloudflare R2">
+            <div class="card-head">
+              <div>
+                <div class="desk-title-row">
+                  <h3>Cloudflare R2 Storage (ฟรี 10 GB · $0 Egress)</h3>
+                  <span id="r2-status-pill" class="status-pill pill-amber">กำลังตรวจสอบ...</span>
+                </div>
+                <p id="r2-status-desc" class="muted-caption">
+                  เก็บเฉพาะไฟล์ภาพย่อ WebP และดัชนีค้นหาที่เข้ารหัส AES-256-GCM (.enc) เพื่อออนไลน์ 24/7 แม้ปิดเครื่อง PC
+                </p>
+              </div>
+              <div class="btn-group">
+                <button id="btn-toggle-r2-form" class="btn btn-secondary btn-sm" type="button">ตั้งค่า / แก้ไขคีย์ R2</button>
+                <button id="btn-test-r2" class="btn btn-cobalt btn-sm" type="button">ทดสอบเชื่อมต่อ R2</button>
+              </div>
+            </div>
+
+            <form id="r2-config-form" class="r2-form hidden">
+              <div class="helper-steps">
+                <strong>วิธีรับค่า 4 ช่องจาก Cloudflare (ฟรี 10 GB ไม่เสียค่าดึงภาพ):</strong>
+                <span>1. เข้า dash.cloudflare.com &rarr; เมนู R2 Object Storage &rarr; Create bucket (เช่น <code>cloudvault-encrypted-blobs</code>)</span>
+                <span>2. กด Manage R2 API Tokens &rarr; Create API token &rarr; เลือกสิทธิ์ Object Read &amp; Write เฉพาะ Bucket นั้น</span>
+                <span>3. วาง S3 Endpoint URL, ชื่อ Bucket, Access Key ID และ Secret Access Key ด้านล่าง (ระบบบันทึกเข้า <code>workbench/.env</code> + <code>web/.env.local</code> ทันทีโดยไม่ขึ้น Git)</span>
+              </div>
+
+              <div class="form-row-two">
+                <div class="form-field">
+                  <label for="r2-endpoint-input">R2 S3 Endpoint URL หรือ Account ID</label>
+                  <input id="r2-endpoint-input" class="field-input" type="text" required placeholder="https://<account_id>.r2.cloudflarestorage.com">
+                </div>
+                <div class="form-field">
+                  <label for="r2-bucket-input">ชื่อ Bucket (R2_BUCKET_NAME)</label>
+                  <input id="r2-bucket-input" class="field-input" type="text" required value="cloudvault-encrypted-blobs" placeholder="cloudvault-encrypted-blobs">
+                </div>
+              </div>
+
+              <div class="form-row-two">
+                <div class="form-field">
+                  <label for="r2-access-key-input">Access Key ID (R2_ACCESS_KEY_ID)</label>
+                  <input id="r2-access-key-input" class="field-input" type="text" required autocomplete="off" placeholder="วาง R2 Access Key ID">
+                </div>
+                <div class="form-field">
+                  <label for="r2-secret-key-input">Secret Access Key (R2_SECRET_ACCESS_KEY)</label>
+                  <input id="r2-secret-key-input" class="field-input" type="password" required autocomplete="new-password" placeholder="วาง R2 Secret Access Key">
+                </div>
+              </div>
+
+              <div class="btn-group">
+                <button id="btn-save-r2" class="btn btn-teal" type="submit">บันทึก &amp; ทดสอบเชื่อมต่อ Cloudflare R2</button>
+                <button id="btn-copy-vercel-r2" class="btn btn-secondary" type="button">คัดลอกรายการ Env สำหรับวางบน Vercel</button>
+              </div>
+              <div id="r2-result-log" class="mini-log"></div>
+            </form>
+          </section>
+
+          <!-- Empty Vault Selection State -->
+          <div id="vault-desk-empty" class="empty-desk">
+            <h2>เลือกตู้นิรภัยจากด้านซ้าย หรือสร้าง AI Search Vault ใหม่</h2>
+            <p>
+              เจ้าของคลังตั้งรหัสผ่านในเบราว์เซอร์เพื่อสร้างกุญแจส่วนตัว จากนั้นเครื่อง PC สแกน AI (InsightFace + Thai RapidOCR + CLIP)
+              แล้วเข้ารหัสภาพย่อและดัชนีด้วยกุญแจสาธารณะแบบทางเดียวก่อนล้างไฟล์ชั่วคราวออกทั้งหมด
+            </p>
+            <button id="btn-empty-create-vault" class="btn btn-teal" type="button">+ สร้าง AI Search Vault แรก</button>
+          </div>
+
+          <!-- Selected Vault Detail Desk -->
+          <div id="vault-desk-content" class="desk-content hidden">
+            <div class="desk-header">
+              <div>
+                <div class="desk-title-row">
+                  <h2 id="vdetail-owner-name" class="desk-title">—</h2>
+                  <span id="vdetail-status-badge" class="status-pill">—</span>
+                </div>
+                <div class="desk-meta-row">
+                  <span>รหัส <code id="vdetail-code">—</code></span>
+                  <span>Storage <code id="vdetail-storage">—</code></span>
+                  <span>แหล่งต้นฉบับ <code id="vdetail-source-type">—</code></span>
+                  <span>Public Key <code id="vdetail-pubkey-fp">รอเจ้าของตั้งรหัสผ่าน</code></span>
+                </div>
+              </div>
+              <div class="desk-sandbox-stat">
+                <span class="stat-label">ภาพในดัชนีเข้ารหัส</span>
+                <span id="vdetail-assets-count" class="stat-value">0 ภาพ</span>
+              </div>
+            </div>
+
+            <!-- One-Time Customer Vault Link Panel -->
+            <section id="vault-link-panel" class="vault-card card-highlight hidden" aria-label="ลิงก์ตู้นิรภัยสำหรับส่งเจ้าของคลัง">
+              <div class="card-head">
+                <div>
+                  <h3>ลิงก์เข้าตู้นิรภัยส่วนตัว (แสดง Token ดิบเพียงครั้งเดียว — เก็บไว้ให้ดี)</h3>
+                  <p class="muted-caption">ส่งลิงก์นี้ให้คุณแม่หรือลูกค้าเปิดครั้งแรกเพื่อตั้งรหัสผ่านตู้นิรภัยส่วนตัว และใช้ลิงก์เดิมนี้ในการค้นหาภาพตลอดไป</p>
+                </div>
+                <div class="btn-group">
+                  <button id="btn-copy-vault-link" class="btn btn-cobalt btn-sm" type="button">คัดลอกลิงก์</button>
+                  <button id="btn-copy-vault-line" class="btn btn-teal btn-sm" type="button">คัดลอกข้อความส่ง LINE</button>
+                  <a id="btn-open-vault-portal" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener noreferrer">เปิดหน้าเว็บ</a>
+                </div>
+              </div>
+              <div class="link-box">
+                <code id="vdetail-vault-link">—</code>
+              </div>
+            </section>
+
+            <!-- Aggregate Zero-Knowledge Metrics -->
+            <div class="vault-stats-row">
+              <div class="vault-stat-box">
+                <span class="stat-label">ภาพที่จัดดัชนี</span>
+                <span id="vstat-assets" class="stat-value">0</span>
+              </div>
+              <div class="vault-stat-box">
+                <span class="stat-label">กลุ่มใบหน้า AI</span>
+                <span id="vstat-faces" class="stat-value">0</span>
+              </div>
+              <div class="vault-stat-box">
+                <span class="stat-label">ภาพที่มีข้อความ OCR</span>
+                <span id="vstat-ocr" class="stat-value">0</span>
+              </div>
+              <div class="vault-stat-box">
+                <span class="stat-label">ขนาดไฟล์เข้ารหัส (.enc)</span>
+                <span id="vstat-bytes" class="stat-value">0 B</span>
+              </div>
+            </div>
+
+            <!-- Step 1 & Step 2: Public Key Check + Run Transient AI Indexer -->
+            <section class="vault-card" aria-label="สแกน AI และเข้ารหัสแบบทางเดียว">
+              <div class="card-head">
+                <div>
+                  <h3>ขั้นตอนที่ 1–2: ตรวจกุญแจสาธารณะ &amp; รันเครื่องสแกน AI (One-Way Encrypt)</h3>
+                  <p id="vdetail-key-status-msg" class="muted-caption">กำลังตรวจสอบสถานะกุญแจสาธารณะของเจ้าของคลัง...</p>
+                </div>
+                <button id="btn-recheck-vault-key" class="btn btn-secondary btn-sm" type="button">รีเฟรชตรวจกุญแจสาธารณะ</button>
+              </div>
+
+              <form id="build-index-form" class="r2-form">
+                <div class="form-row-two">
+                  <div class="form-field">
+                    <label for="input-vault-source-dir">โฟลเดอร์ภาพต้นฉบับชั่วคราวบนเครื่อง PC</label>
+                    <input id="input-vault-source-dir" class="field-input" type="text" required placeholder="เช่น D:\Mom_Temp_Scan หรือ D:\MigrationJobs\<job_id>\media">
+                  </div>
+                  <div class="form-field">
+                    <label for="input-vault-max-files">จำนวนภาพสูงสุดต่อรอบ</label>
+                    <input id="input-vault-max-files" class="field-input" type="number" min="1" max="500000" value="200000">
+                  </div>
+                </div>
+                <div class="btn-group">
+                  <button id="btn-run-vault-indexer" class="btn btn-teal" type="submit">เริ่มสแกน AI + เข้ารหัสทางเดียว (.enc) + ล้างไฟล์พัก</button>
+                </div>
+                <div id="vault-indexer-log" class="mini-log"></div>
+              </form>
+            </section>
+
+            <!-- Step 3: Pluggable Media Source Adapter -->
+            <section class="vault-card" aria-label="ตั้งค่าแหล่งเปิดภาพต้นฉบับ">
+              <div class="card-head">
+                <div>
+                  <h3>ขั้นตอนที่ 3: แหล่งเปิดภาพความละเอียดเต็ม (Pluggable Media Source Adapter)</h3>
+                  <p class="muted-caption">ผูกปีของภาพกับลิงก์อัลบั้ม Google Photos วันนี้ และสลับไป Home NAS / Immich ในอนาคตโดยไม่ต้องสแกน AI ใหม่</p>
+                </div>
+              </div>
+
+              <form id="media-source-form" class="r2-form">
+                <div class="form-row-two">
+                  <div class="form-field">
+                    <label for="input-media-source-type">ประเภทแหล่งภาพต้นฉบับ</label>
+                    <select id="input-media-source-type" class="field-input">
+                      <option value="google_photos_shared">google_photos_shared — ลิงก์อัลบั้มแชร์ Google Photos (Phase 1)</option>
+                      <option value="google_photos_private">google_photos_private — บัญชี Google Photos ส่วนตัวของลูกค้า</option>
+                      <option value="nas_immich">nas_immich — Home NAS / Immich ส่วนตัว (Phase 2)</option>
+                      <option value="local_hdd">local_hdd — External Drive / ออฟไลน์</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="input-nas-base-url">URL ของ Home NAS / Immich (กรณีเลือก nas_immich)</label>
+                    <input id="input-nas-base-url" class="field-input" type="url" placeholder="https://nas.family-home.example.com">
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label for="input-album-mappings">จับคู่ปี ค.ศ. &rarr; ลิงก์อัลบั้ม Google Photos (บรรทัดละ 1 ช่วงปี รูปแบบ <code>2005-2008 = https://photos.app.goo.gl/...</code>)</label>
+                  <textarea id="input-album-mappings" class="field-input field-textarea" rows="5" placeholder="2005-2008 = https://photos.app.goo.gl/...&#10;2010 = https://photos.app.goo.gl/...&#10;2019-2020 = https://photos.app.goo.gl/..."></textarea>
+                </div>
+
+                <div class="btn-group">
+                  <button id="btn-save-media-source" class="btn btn-cobalt" type="submit">บันทึกแหล่งเปิดภาพต้นฉบับ</button>
+                </div>
+                <div id="media-source-log" class="mini-log"></div>
+              </form>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <!-- Create New Customer Job Modal -->
@@ -258,6 +490,48 @@
     </form>
   </dialog>
 
+  <!-- Create New Zero-Knowledge AI Search Vault Modal -->
+  <dialog id="create-vault-modal" class="vault-modal" aria-labelledby="vault-modal-title">
+    <form id="create-vault-form" method="dialog" class="modal-form">
+      <div class="modal-header">
+        <h2 id="vault-modal-title">สร้างตู้นิรภัยค้นหาภาพ AI (Zero-Knowledge Search Vault)</h2>
+        <button id="btn-close-vault-modal" class="btn btn-ghost btn-sm" type="button" aria-label="ปิดหน้าต่าง">ปิด</button>
+      </div>
+
+      <div class="form-field">
+        <label for="input-vault-owner">ชื่อคลังภาพ / เจ้าของตู้นิรภัย</label>
+        <input id="input-vault-owner" class="field-input" type="text" required maxlength="120" placeholder="เช่น คลังภาพครอบครัวคุณแม่ (2005–2020)">
+      </div>
+
+      <div class="form-row-two">
+        <div class="form-field">
+          <label for="input-vault-storage">พื้นที่เก็บไฟล์เข้ารหัส (.enc)</label>
+          <select id="input-vault-storage" class="field-input">
+            <option value="cloudflare_r2">cloudflare_r2 — Cloudflare R2 (ฟรี 10 GB · ออนไลน์ 24/7)</option>
+            <option value="pc_tunnel_nas">pc_tunnel_nas — เก็บในเครื่อง PC นี้ (ผ่าน Cloudflare Tunnel)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="input-vault-source-mode">แหล่งภาพต้นฉบับเริ่มต้น</label>
+          <select id="input-vault-source-mode" class="field-input">
+            <option value="google_photos_shared">google_photos_shared — Google Photos Shared Album</option>
+            <option value="google_photos_private">google_photos_private — Google Photos ส่วนตัว</option>
+            <option value="nas_immich">nas_immich — Home NAS / Immich</option>
+            <option value="local_hdd">local_hdd — External HDD</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="create-vault-error" class="form-error hidden" role="alert"></div>
+
+      <div class="modal-actions">
+        <button id="btn-cancel-create-vault" class="btn btn-ghost" type="button">ยกเลิก</button>
+        <button id="btn-submit-create-vault" class="btn btn-teal" type="submit">สร้างตู้นิรภัยและออกลิงก์</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/ui/app.js" defer></script>
+  <script src="/ui/vault-ui.js" defer></script>
 </body>
 </html>

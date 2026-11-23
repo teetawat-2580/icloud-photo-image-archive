@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -38,6 +39,70 @@ from workbench.search_vault_indexer import SearchVaultIndexer
 from workbench.supabase_relay import SupabaseRelayClient
 
 DEFAULT_ENCRYPTED_BLOBS_ROOT = Path(os.environ.get("SEARCH_VAULT_BLOBS_ROOT", r"D:\SearchVaultBlobs"))
+WORKBENCH_ROOT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT_DIR = WORKBENCH_ROOT_DIR.parent
+SAFE_ACCOUNT_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{8,64}$")
+SAFE_BUCKET_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")
+
+
+def _mask_secret_id(value: str) -> str:
+    clean = str(value or "").strip()
+    if len(clean) <= 8:
+        return "***" if clean else ""
+    return f"{clean[:4]}…{clean[-4:]}"
+
+
+def _assert_single_line_env_value(name: str, value: str) -> str:
+    if not isinstance(value, str) or any(ch in value for ch in ("\r", "\n", "\x00")):
+        raise HTTPException(status_code=400, detail=f"Invalid control characters in {name}")
+    cleaned = value.strip()
+    if not cleaned:
+        raise HTTPException(status_code=400, detail=f"{name} cannot be empty")
+    return cleaned
+
+
+def _upsert_env_file(env_path: Path, updates: dict[str, str]) -> None:
+    """Safely upsert key=value lines into a local gitignored .env file while preserving all other lines."""
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    existing_lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.is_file() else []
+    remaining = dict(updates)
+    out_lines: list[str] = []
+
+    for line in existing_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in line:
+            out_lines.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in remaining:
+            out_lines.append(f"{key}={remaining.pop(key)}")
+        else:
+            out_lines.append(line)
+
+    if remaining:
+        if out_lines and out_lines[-1].strip():
+            out_lines.append("")
+        out_lines.append("# Cloudflare R2 Zero-Knowledge Encrypted Search Vault")
+        for key, val in remaining.items():
+            out_lines.append(f"{key}={val}")
+
+    tmp = env_path.with_suffix(env_path.suffix + f".{os.getpid()}.tmp")
+    tmp.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    os.replace(tmp, env_path)
+
+
+class SaveR2ConfigRequest(BaseModel):
+    account_id: str | None = Field(default=None, max_length=120)
+    endpoint_url: str | None = Field(default=None, max_length=240)
+    bucket_name: str = Field(..., min_length=3, max_length=63)
+    access_key_id: str = Field(..., min_length=8, max_length=128)
+    secret_access_key: str = Field(..., min_length=8, max_length=256)
+    test_connection: bool = True
+
+
+class UpdateMediaSourceRequest(BaseModel):
+    media_source_type: Literal["google_photos_shared", "google_photos_private", "nas_immich", "local_hdd"]
+    media_source_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CreateSearchVaultRequest(BaseModel):
@@ -83,6 +148,124 @@ def register_search_vault_routes(
         else Path(os.environ.get("SEARCH_VAULT_BLOBS_ROOT", str(DEFAULT_ENCRYPTED_BLOBS_ROOT))).resolve()
     )
     active_indexer = indexer or SearchVaultIndexer()
+
+    @app.get("/api/operator/vaults/r2-status")
+    def get_r2_status() -> dict[str, Any]:
+        cfg = CloudflareR2Config.from_env()
+        if cfg is None:
+            return {
+                "configured": False,
+                "endpoint_url": "",
+                "bucket_name": "",
+                "account_id_masked": "",
+                "access_key_masked": "",
+                "local_blobs_root": str(blobs_root),
+            }
+        return {
+            "configured": True,
+            "endpoint_url": cfg.endpoint_url,
+            "bucket_name": cfg.bucket_name,
+            "account_id_masked": _mask_secret_id(cfg.account_id),
+            "access_key_masked": _mask_secret_id(cfg.access_key_id),
+            "local_blobs_root": str(blobs_root),
+        }
+
+    @app.post("/api/operator/vaults/r2-config")
+    def save_r2_config(body: SaveR2ConfigRequest) -> dict[str, Any]:
+        raw_acct = body.account_id or ""
+        if not raw_acct.strip() and body.endpoint_url:
+            raw_acct = CloudflareR2Config.extract_account_id_from_endpoint(body.endpoint_url)
+        account_id = _assert_single_line_env_value("account_id/endpoint_url", raw_acct)
+        if not SAFE_ACCOUNT_ID_RE.match(account_id):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid Cloudflare R2 Account ID or Endpoint URL (expected https://<account_id>.r2.cloudflarestorage.com)",
+            )
+
+        bucket_name = _assert_single_line_env_value("bucket_name", body.bucket_name).lower()
+        if not SAFE_BUCKET_NAME_RE.match(bucket_name):
+            raise HTTPException(
+                status_code=400,
+                detail="Bucket name must be 3–63 lowercase alphanumeric characters or hyphens",
+            )
+
+        access_key_id = _assert_single_line_env_value("access_key_id", body.access_key_id)
+        secret_access_key = _assert_single_line_env_value("secret_access_key", body.secret_access_key)
+        endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
+
+        env_updates_workbench = {
+            "R2_ACCOUNT_ID": account_id,
+            "R2_ENDPOINT_URL": endpoint_url,
+            "R2_BUCKET_NAME": bucket_name,
+            "R2_ACCESS_KEY_ID": access_key_id,
+            "R2_SECRET_ACCESS_KEY": secret_access_key,
+        }
+        env_updates_web = {
+            "R2_ENDPOINT_URL": endpoint_url,
+            "R2_BUCKET_NAME": bucket_name,
+            "R2_ACCESS_KEY_ID": access_key_id,
+            "R2_SECRET_ACCESS_KEY": secret_access_key,
+        }
+
+        wb_env_path = Path(os.environ.get("WORKBENCH_ENV_FILE", str(WORKBENCH_ROOT_DIR / ".env")))
+        web_env_path = Path(os.environ.get("WEB_ENV_LOCAL_FILE", str(PROJECT_ROOT_DIR / "web" / ".env.local")))
+
+        _upsert_env_file(wb_env_path, env_updates_workbench)
+        if web_env_path.parent.exists():
+            _upsert_env_file(web_env_path, env_updates_web)
+
+        for k, v in env_updates_workbench.items():
+            os.environ[k] = v
+
+        connection_test: dict[str, Any] | None = None
+        if body.test_connection:
+            try:
+                r2_client = CloudflareR2StorageClient(
+                    CloudflareR2Config(
+                        account_id=account_id,
+                        access_key_id=access_key_id,
+                        secret_access_key=secret_access_key,
+                        bucket_name=bucket_name,
+                    )
+                )
+                connection_test = r2_client.head_bucket()
+            except Exception as exc:
+                connection_test = {"ok": False, "error": str(exc)}
+
+        return {
+            "configured": True,
+            "endpoint_url": endpoint_url,
+            "bucket_name": bucket_name,
+            "account_id_masked": _mask_secret_id(account_id),
+            "access_key_masked": _mask_secret_id(access_key_id),
+            "workbench_env_updated": str(wb_env_path.name),
+            "web_env_updated": web_env_path.is_file(),
+            "connection_test": connection_test,
+        }
+
+    @app.post("/api/operator/vaults/r2-test")
+    def test_r2_connection() -> dict[str, Any]:
+        cfg = CloudflareR2Config.from_env()
+        if cfg is None:
+            raise HTTPException(status_code=400, detail="Cloudflare R2 credentials are not configured yet")
+        try:
+            return CloudflareR2StorageClient(cfg).head_bucket()
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Cloudflare R2 connection failed: {exc}") from exc
+
+    @app.patch("/api/operator/vaults/{vault_id}/media-source")
+    def update_vault_media_source(vault_id: str, body: UpdateMediaSourceRequest) -> dict[str, Any]:
+        vault_row = relay.get_search_vault(vault_id)
+        if vault_row is None:
+            raise HTTPException(status_code=404, detail=f"Search vault '{vault_id}' not found")
+        updated = relay.update_search_vault(
+            vault_id,
+            {
+                "media_source_type": body.media_source_type,
+                "media_source_config": body.media_source_config,
+            },
+        )
+        return {"vault": {k: v for k, v in (updated or {}).items() if k != "access_token_hash_sha256"}}
 
     @app.get("/api/operator/vaults")
     def list_vaults() -> dict[str, Any]:

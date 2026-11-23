@@ -51,21 +51,44 @@ class CloudflareR2Config:
     bucket_name: str
     region: str = "auto"
 
+    @staticmethod
+    def extract_account_id_from_endpoint(endpoint_url: str) -> str:
+        raw = str(endpoint_url or "").strip()
+        if not raw:
+            return ""
+        if "://" not in raw:
+            # Bare account ID (alphanumeric/hex)
+            return raw.split("/")[0].strip()
+        parsed = urlparse(raw)
+        host = (parsed.hostname or "").strip().lower()
+        if host.endswith(".r2.cloudflarestorage.com"):
+            return host.split(".")[0]
+        return ""
+
     @classmethod
     def from_env(cls) -> CloudflareR2Config | None:
         acct = os.environ.get("R2_ACCOUNT_ID", "").strip()
+        if not acct:
+            acct = cls.extract_account_id_from_endpoint(os.environ.get("R2_ENDPOINT_URL", ""))
         ak = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
         sk = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
         bucket = os.environ.get("R2_BUCKET_NAME", "").strip()
         if not (acct and ak and sk and bucket):
             return None
-        if "your-" in acct.lower() or "your-" in ak.lower():
+        if "your-" in acct.lower() or "your-" in ak.lower() or "your_" in acct.lower() or "your_" in ak.lower():
             return None
         return cls(account_id=acct, access_key_id=ak, secret_access_key=sk, bucket_name=bucket)
 
     @property
     def endpoint_host(self) -> str:
         return f"{self.account_id}.r2.cloudflarestorage.com"
+
+    @property
+    def endpoint_url(self) -> str:
+        return f"https://{self.endpoint_host}"
+
+    def bucket_url(self) -> str:
+        return f"https://{self.endpoint_host}/{self.bucket_name}"
 
     def object_url(self, object_key: str) -> str:
         safe_key = validate_object_key(object_key)
@@ -204,6 +227,24 @@ class CloudflareR2StorageClient:
         # Prefix deletion on R2 requires ListObjectsV2 + DeleteObject; handled via lifecycle rules or explicit keys.
         validate_object_key(prefix)
         return 0
+
+    def head_bucket(self) -> dict[str, object]:
+        """Verify live Cloudflare R2 bucket reachability and SigV4 credentials via HEAD."""
+        url = self.config.bucket_url()
+        headers = build_sigv4_headers(
+            method="HEAD",
+            url=url,
+            payload_bytes=b"",
+            config=self.config,
+        )
+        with httpx.Client(timeout=self.timeout_seconds) as client:
+            resp = client.head(url, headers=headers)
+        return {
+            "ok": resp.status_code == 200,
+            "http_status": resp.status_code,
+            "endpoint_url": self.config.endpoint_url,
+            "bucket_name": self.bucket_name,
+        }
 
 
 class LocalEncryptedNasStorage:

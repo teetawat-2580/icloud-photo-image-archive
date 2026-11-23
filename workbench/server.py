@@ -555,6 +555,8 @@ def __getattr__(name: str) -> Any:
 
 def run_server() -> None:
     """Launch uvicorn bound strictly to localhost `127.0.0.1:8790` (NEVER `0.0.0.0`)."""
+    import sys
+
     _load_workbench_env()
     host = os.environ.get("WORKBENCH_HOST", DEFAULT_BIND_HOST).strip()
     if host not in ("127.0.0.1", "localhost"):
@@ -562,7 +564,11 @@ def run_server() -> None:
             f"Security violation: Operator Workbench MUST bind strictly to 127.0.0.1 (refused host='{host}')."
         )
     port = int(os.environ.get("WORKBENCH_PORT", str(DEFAULT_BIND_PORT)))
-    uvicorn.run(get_default_app(), host="127.0.0.1", port=port, log_level="info")
+    uvicorn_kwargs: dict[str, Any] = {"host": "127.0.0.1", "port": port, "log_level": "info"}
+    if sys.stdout is None or sys.stderr is None:
+        # Under pythonw.exe (e.g. start_workbench_silent.vbs), stdio is None; disable uvicorn TTY log config
+        uvicorn_kwargs["log_config"] = None
+    uvicorn.run(get_default_app(), **uvicorn_kwargs)
 
 
 if __name__ == "__main__":

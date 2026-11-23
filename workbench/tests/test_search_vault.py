@@ -402,3 +402,105 @@ def test_fastapi_operator_vault_endpoints_create_build_and_serve_ciphertext_only
     cross_res = client.get(f"/api/operator/vaults/other-vault-id/blobs/{pub['index_object_key']}")
     assert cross_res.status_code == 403
 
+
+def test_r2_config_from_endpoint_url_and_workbench_r2_wizard_and_media_source_update(tmp_path: Path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from workbench.server import create_app
+
+    fake_workbench_env = tmp_path / "workbench.env"
+    fake_workbench_env.write_text("SUPABASE_URL=https://example.supabase.co\n", encoding="utf-8")
+    fake_web_env = tmp_path / "web.env.local"
+    fake_web_env.write_text("NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co\n", encoding="utf-8")
+
+    monkeypatch.setenv("SEARCH_VAULT_BLOBS_ROOT", str(tmp_path / "encrypted_blobs"))
+    monkeypatch.setenv("WORKBENCH_ENV_FILE", str(fake_workbench_env))
+    monkeypatch.setenv("WEB_ENV_LOCAL_FILE", str(fake_web_env))
+    for k in ("R2_ACCOUNT_ID", "R2_ENDPOINT_URL", "R2_BUCKET_NAME", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"):
+        monkeypatch.delenv(k, raising=False)
+
+    app = create_app(
+        staging_root=tmp_path / "staging",
+        keys_dir=tmp_path / "keys",
+        local_state_path=tmp_path / "local_state.json",
+        public_web_url="https://icloud-photo-image-archive.vercel.app",
+        supabase_url="",
+        service_role_key="",
+    )
+    client = TestClient(app)
+
+    # 1. Initially R2 is not configured
+    st0 = client.get("/api/operator/vaults/r2-status")
+    assert st0.status_code == 200
+    assert st0.json()["configured"] is False
+
+    # 2. Save R2 config via endpoint_url (auto-derives account_id, upserts both .env files, never returns secret)
+    save_res = client.post(
+        "/api/operator/vaults/r2-config",
+        json={
+            "endpoint_url": "https://acct99887766.r2.cloudflarestorage.com",
+            "bucket_name": "cloudvault-encrypted-blobs",
+            "access_key_id": "R2KEY1234567890ABCD",
+            "secret_access_key": "SuperSecretR2ValueNeverEchoed",
+            "test_connection": False,
+        },
+    )
+    assert save_res.status_code == 200
+    body = save_res.json()
+    assert body["configured"] is True
+    assert body["bucket_name"] == "cloudvault-encrypted-blobs"
+    assert body["endpoint_url"] == "https://acct99887766.r2.cloudflarestorage.com"
+    assert "SuperSecretR2ValueNeverEchoed" not in save_res.text
+
+    # Verify CloudflareR2Config.from_env() reads live RAM env cleanly
+    cfg = CloudflareR2Config.from_env()
+    assert cfg is not None
+    assert cfg.account_id == "acct99887766"
+    assert cfg.bucket_name == "cloudvault-encrypted-blobs"
+
+    # Verify existing env keys were preserved and R2 keys written to both files
+    wb_env_text = fake_workbench_env.read_text(encoding="utf-8")
+    web_env_text = fake_web_env.read_text(encoding="utf-8")
+    assert "SUPABASE_URL=https://example.supabase.co" in wb_env_text
+    assert "R2_ACCOUNT_ID=acct99887766" in wb_env_text
+    assert "R2_ENDPOINT_URL=https://acct99887766.r2.cloudflarestorage.com" in web_env_text
+
+    # 3. Reject newline injection in R2 config
+    bad_res = client.post(
+        "/api/operator/vaults/r2-config",
+        json={
+            "endpoint_url": "https://acct99887766.r2.cloudflarestorage.com",
+            "bucket_name": "bad\nINJECTED=1",
+            "access_key_id": "R2KEY1234567890ABCD",
+            "secret_access_key": "secret123456",
+            "test_connection": False,
+        },
+    )
+    assert bad_res.status_code == 400
+
+    # 4. Create vault & update media_source_config via PATCH
+    created = client.post(
+        "/api/operator/vaults",
+        json={"owner_display_name": "Family Vault", "storage_backend": "cloudflare_r2"},
+    ).json()
+    vid = created["vault"]["id"]
+
+    patch_res = client.patch(
+        f"/api/operator/vaults/{vid}/media-source",
+        json={
+            "media_source_type": "nas_immich",
+            "media_source_config": {"nas_base_url": "https://nas.family.example.com"},
+        },
+    )
+    assert patch_res.status_code == 200
+    assert patch_res.json()["vault"]["media_source_type"] == "nas_immich"
+
+    # 5. Workbench UI serves Search Vault tab & modular vault-ui.js
+    ui_html = client.get("/")
+    assert ui_html.status_code == 200
+    assert "tab-search-vaults" in ui_html.text
+    assert "/ui/vault-ui.js" in ui_html.text
+    ui_js = client.get("/ui/vault-ui.js")
+    assert ui_js.status_code == 200
+
+

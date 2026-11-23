@@ -1,6 +1,6 @@
 # Technical Specification — CloudVault Concierge
 
-> **Version**: `0.2.0`  
+> **Version**: `0.2.1`  
 > **Workspace**: `icloud photo image archive` (`https://github.com/teetawat-2580/icloud-photo-image-archive.git`)  
 > **Cloud Web Deployment**: Vercel Project `icloud-photo-image-archive` (`prj_GBsPsqGtEJdVLRxPDZ0JUDuMALRH`, Root Directory `web`, Node `24.x`)  
 > **Cloud Database**: Supabase Project `zhgyiljmzsjbvlgozpfu` (`ap-southeast-1`, Singapore; supports both modern `sb_secret_...` and legacy JWT `service_role` keys)
@@ -85,6 +85,10 @@ All endpoints require a valid high-entropy customer token (`Authorization: Beare
 | `/api/operator/jobs/{job_id}/launch-cdp-upload` | `POST` | Dispatches `workbench/cdp/gphotos_uploader.js` (`shell=False`) in an isolated Dedicated Chrome Profile (`9301..9399`). |
 | `/api/operator/jobs/{job_id}/pdpa-purge` | `POST` | Terminates job Chrome instance, wipes sandbox files/sessions/profile, confirms `0` files left, signs RSA-PSS PDPA Purge Certificate, and publishes to Supabase. |
 | `/api/operator/vaults` | `GET` / `POST` | Lists Zero-Knowledge Search Vaults or creates a new Vault (`32-byte` token returned once, `SHA-256` hash saved to Supabase `search_vaults`). |
+| `/api/operator/vaults/r2-status` | `GET` | Reports masked Cloudflare R2 configuration status (`configured`, `endpoint_url`, `bucket_name`, masked access key; never echoes `R2_SECRET_ACCESS_KEY`). |
+| `/api/operator/vaults/r2-config` | `POST` | Validates and upserts Cloudflare R2 credentials into local gitignored `workbench/.env` + `web/.env.local`, activates them live in RAM, and optionally executes a live SigV4 `HEAD` bucket test. |
+| `/api/operator/vaults/r2-test` | `POST` | Runs a live AWS SigV4 `HEAD` check against the configured Cloudflare R2 bucket. |
+| `/api/operator/vaults/{vault_id}/media-source` | `PATCH` | Updates a vault's Pluggable Media Source Adapter (`google_photos_shared` / `google_photos_private` / `nas_immich` / `local_hdd` + album URLs / NAS base URL). |
 | `/api/operator/vaults/{vault_id}/build-index` | `POST` | Runs transient local AI indexing (`InsightFace` + `RapidOCR PP-OCRv5` + `Multilingual CLIP` + WebP thumbs), wraps AES key ONE-WAY to customer's public key, uploads ciphertext to R2/Local NAS, zeroes key in RAM, and optionally purges temporary plaintext folder. |
 | `/api/operator/vaults/{vault_id}/blobs/{object_key}` | `GET` | Path-confined opaque `.enc` blob endpoint for `pc_tunnel_nas` fallback storage mode. |
 
