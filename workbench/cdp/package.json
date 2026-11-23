@@ -1,0 +1,16 @@
+{
+  "name": "cloudvault-cdp-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dedicated Chrome Profile CDP Upload & 3-Layer Personal Album Isolation Worker for CloudVault Concierge",
+  "main": "gphotos_uploader.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "test": "node --test --test-timeout=15000 --test-force-exit tests/gphotos_worker.test.js",
+    "check": "node --check dedicated_chrome_manager.js && node --check personal_album_isolation_guard.js && node --check gphotos_uploader.js && node --check tests/gphotos_worker.test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

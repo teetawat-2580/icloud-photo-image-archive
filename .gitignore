@@ -1,0 +1,40 @@
+# Secrets & Environment Variables (NEVER commit)
+.env
+.env.local
+.env.*.local
+workbench/.env
+web/.env.local
+
+# Private Family Case Study Logs containing personal emails / share links (NEVER commit)
+docs/MOM_CASE_STUDY_MIGRATION_LOG.md
+
+# Local Operator Cryptographic Keys & Per-Customer Sessions (NEVER commit)
+workbench/.keys/
+workbench/.local_state/
+*.pem
+*.key
+*.p12
+.icloud_session/
+chrome_profile/
+
+# Node & Next.js
+node_modules/
+.vercel/
+web/.next/
+web/out/
+web/coverage/
+web/tsconfig.tsbuildinfo
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CloudVault Concierge — Local Operator Workbench</title>
+  <link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="vault-header">
+      <div class="brand-cluster">
+        <div class="vault-emblem" aria-hidden="true">CV</div>
+        <div>
+          <h1 class="brand-title">CloudVault Concierge</h1>
+          <p class="brand-subtitle">Local Operator Workbench · จัดการงานย้ายภาพลูกค้าแบบแยกกล่องนิรภัย</p>
+        </div>
+      </div>
+
+      <div class="header-telemetry">
+        <div class="chip chip-localhost" title="Bound strictly to loopback interface">
+          <span class="dot dot-teal"></span>
+          <span id="health-bind">127.0.0.1:8790</span>
+        </div>
+        <div class="chip" title="Supabase Relay mode">
+          <span id="health-mode-dot" class="dot dot-cobalt"></span>
+          <span id="health-mode">กำลังตรวจสอบโหมด...</span>
+        </div>
+        <div class="chip chip-mono" title="Local RSA-4096 Public Key SHA-256 Fingerprint">
+          <span>Key:</span>
+          <span id="health-fingerprint">—</span>
+        </div>
+        <button id="btn-open-create" class="btn btn-primary" type="button">+ สร้างงานลูกค้าใหม่</button>
+      </div>
+    </header>
+
+    <div id="onedrive-alert" class="inline-alert hidden" role="alert">
+      คำเตือน: โฟลเดอร์ Staging ปัจจุบันอยู่ภายใน OneDrive กรุณาตั้งค่า STAGING_ROOT เป็นไดรฟ์ในเครื่อง เช่น D:\MigrationJobs
+    </div>
+
+    <div id="toast-bar" class="toast-bar hidden" role="status" aria-live="polite"></div>
+
+    <main class="workbench-grid">
+      <!-- Left Rail: Active Customer Jobs -->
+      <aside class="jobs-rail" aria-label="รายการงานลูกค้า">
+        <div class="rail-header">
+          <div>
+            <h2 class="section-heading">คิวงานลูกค้า</h2>
+            <p class="muted-caption">
+              Staging Root: <code id="health-staging-root">D:\MigrationJobs</code>
+            </p>
+          </div>
+          <button id="btn-refresh-jobs" class="btn btn-ghost btn-sm" type="button">รีเฟรช</button>
+        </div>
+
+        <div class="rail-search">
+          <input
+            id="job-search-input"
+            class="field-input"
+            type="search"
+            placeholder="ค้นหาชื่อลูกค้า หรือรหัสงาน..."
+            aria-label="ค้นหาชื่อลูกค้าหรือรหัสงาน"
+          >
+        </div>
+
+        <div id="jobs-list" class="jobs-list" role="listbox" aria-label="รายการงานทั้งหมด"></div>
+      </aside>
+
+      <!-- Right Desk: Selected Job Control Panel -->
+      <section class="job-desk" aria-label="แผงควบคุมงานที่เลือก">
+        <div id="desk-empty" class="empty-desk">
+          <h2>เลือกงานลูกค้าจากรายการด้านซ้าย หรือสร้างงานใหม่</h2>
+          <p>
+            ทุกงานจะได้รับโฟลเดอร์ Staging, โปรไฟล์ Chrome, เซสชัน iCloud และพอร์ต CDP (9301–9399)
+            แยกขาดจากกัน และสามารถล้างข้อมูลตามมาตรฐาน PDPA พร้อมใบรับรองลายเซ็นดิจิทัลได้ในคลิกเดียว
+          </p>
+          <button id="btn-empty-create" class="btn btn-primary" type="button">สร้างงานลูกค้าแรก</button>
+        </div>
+
+        <div id="desk-content" class="desk-content hidden">
+          <!-- Job Overview Header -->
+          <div class="desk-header">
+            <div>
+              <div class="desk-title-row">
+                <h2 id="detail-customer-name" class="desk-title">—</h2>
+                <span id="detail-status-badge" class="status-pill">—</span>
+              </div>
+              <div class="desk-meta-row">
+                <span>รหัสงาน <code id="detail-job-code">—</code></span>
+                <span>โหมด <strong id="detail-service-mode">—</strong></span>
+                <span>อัลบั้มปลายทาง <code id="detail-album-prefix">—</code></span>
+                <span>CDP Port <code id="detail-cdp-port">—</code></span>
+              </div>
+            </div>
+            <div class="desk-sandbox-stat">
+              <span class="stat-label">ไฟล์ใน Sandbox</span>
+              <span id="detail-sandbox-files" class="stat-value">0 ไฟล์</span>
+            </div>
+          </div>
+
+          <!-- One-Time Customer LINE Tracking Link Box -->
+          <section id="line-link-panel" class="vault-card card-highlight hidden" aria-label="ลิงก์ส่งลูกค้าทาง LINE">
+            <div class="card-head">
+              <div>
+                <h3>ลิงก์ส่งให้ลูกค้าทาง LINE (แสดง Token ดิบเพียงครั้งเดียว)</h3>
+                <p class="muted-caption">ระบบจัดเก็บเฉพาะค่าแฮช SHA-256 ของ Token บนฐานข้อมูลเพื่อความปลอดภัยสูงสุด</p>
+              </div>
+              <div class="btn-group">
+                <button id="btn-copy-link" class="btn btn-cobalt btn-sm" type="button">คัดลอกลิงก์</button>
+                <button id="btn-copy-line-msg" class="btn btn-primary btn-sm" type="button">คัดลอกข้อความส่ง LINE</button>
+              </div>
+            </div>
+            <div class="link-box">
+              <code id="detail-tracking-link">—</code>
+            </div>
+          </section>
+
+          <!-- Operational Workflow Controls -->
+          <section class="vault-card" aria-label="ขั้นตอนปฏิบัติการ">
+            <div class="card-head">
+              <div>
+                <h3>ปฏิบัติการเซสชันและการโอนย้าย</h3>
+                <p class="muted-caption">ถอดรหัสซองข้อมูลใน RAM เท่านั้น · ทำลายซองบนคลาวด์ทันทีหลังดึงข้อมูล</p>
+              </div>
+            </div>
+
+            <div class="action-grid">
+              <div class="action-tile">
+                <h4>1. ซองรหัสผ่าน E2E</h4>
+                <p>ดึงซอง RSA-4096 + AES-256-GCM มาถอดรหัสใน RAM และทำลายซองต้นฉบับทันที</p>
+                <button id="btn-consume-envelope" class="btn btn-secondary" type="button">ดึง &amp; ถอดรหัส Envelope</button>
+                <div id="envelope-result" class="mini-log"></div>
+              </div>
+
+              <div class="action-tile">
+                <h4>2. ยืนยันตัวตน 2FA (OTP)</h4>
+                <p>ส่งคำขอรหัส 6 หลักไปยังหน้าติดตามงานของลูกค้าแบบเรียลไทม์ (อายุ 5 นาที)</p>
+                <div class="inline-controls">
+                  <select id="otp-provider-select" class="field-input field-sm" aria-label="เลือกผู้ให้บริการ 2FA">
+                    <option value="icloud">Apple iCloud 2FA</option>
+                    <option value="google_photos">Google Photos 2FA</option>
+                  </select>
+                  <button id="btn-request-otp" class="btn btn-amber" type="button">ส่งคำขอรหัส 2FA</button>
+                  <button id="btn-consume-otp" class="btn btn-secondary" type="button">รับรหัส OTP</button>
+                </div>
+                <div id="otp-result" class="mini-log"></div>
+              </div>
+
+              <div class="action-tile">
+                <h4>3. อัปโหลด Google Photos (Isolated CDP)</h4>
+                <p>เปิด Chrome โปรไฟล์เฉพาะงานบนพอร์ต CDP แยกอิสระ โดยไม่ยุ่งกับเบราว์เซอร์ส่วนตัว</p>
+                <div class="inline-controls">
+                  <label class="check-label">
+                    <input id="cdp-dry-run" type="checkbox">
+                    <span>Dry-run</span>
+                  </label>
+                  <button id="btn-launch-cdp" class="btn btn-cobalt" type="button">เปิด Chrome CDP Uploader</button>
+                </div>
+                <div id="cdp-result" class="mini-log"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 5-Lock Safety Gate Verification Panel -->
+          <section class="vault-card" aria-label="แผงตรวจสอบประตูนิรภัย 5 ชั้น">
+            <div class="card-head">
+              <div>
+                <h3>ประตูนิรภัย 5 ชั้น (5-Lock Safety Gate)</h3>
+                <p class="muted-caption">ระบบปิดกั้นการลบภาพแบบ Fail-Closed จนกว่าล็อกทั้ง 5 ชั้นจะผ่านครบ 100%</p>
+              </div>
+              <div class="inline-controls">
+                <input
+                  id="fivelock-year-input"
+                  class="field-input field-sm field-year"
+                  type="number"
+                  min="1990"
+                  max="2100"
+                  value="2020"
+                  aria-label="ปี ค.ศ. ที่ต้องการตรวจสอบ"
+                >
+                <button id="btn-verify-fivelock" class="btn btn-secondary btn-sm" type="button">ตรวจ 5-Lock Gate</button>
+              </div>
+            </div>
+
+            <div id="fivelock-summary" class="fivelock-banner">ยังไม่ได้รันการตรวจสอบ 5-Lock สำหรับงานนี้</div>
+            <ul id="fivelock-checklist" class="lock-checklist"></ul>
+          </section>
+
+          <!-- 1-Click PDPA Purge & Signed Certificate -->
+          <section class="vault-card card-pdpa" aria-label="การล้างข้อมูล PDPA และใบรับรอง">
+            <div class="card-head">
+              <div>
+                <h3>1-Click PDPA Purge (ล้างข้อมูลลูกค้าในเครื่องถาวร)</h3>
+                <p class="muted-caption">
+                  ลบไฟล์ทั้งหมดใน staging/, chrome_profile/, icloud_session/ พร้อมตรวจยืนยันเหลือ 0 ไฟล์และลงนาม RSA-PSS-SHA256
+                </p>
+              </div>
+              <button id="btn-pdpa-purge" class="btn btn-danger" type="button">1-Click PDPA Purge</button>
+            </div>
+
+            <div id="pdpa-cert-box" class="cert-box hidden">
+              <div class="cert-head">
+                <strong class="cert-title">ใบรับรองการล้างข้อมูล PDPA (Signed Purge Certificate)</strong>
+                <button id="btn-copy-cert" class="btn btn-ghost btn-sm" type="button">คัดลอก JSON ใบรับรอง</button>
+              </div>
+              <dl id="pdpa-cert-fields" class="cert-fields"></dl>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Create New Customer Job Modal -->
+  <dialog id="create-job-modal" class="vault-modal" aria-labelledby="modal-title">
+    <form id="create-job-form" method="dialog" class="modal-form">
+      <div class="modal-header">
+        <h2 id="modal-title">สร้างงานย้ายภาพลูกค้าใหม่</h2>
+        <button id="btn-close-modal" class="btn btn-ghost btn-sm" type="button" aria-label="ปิดหน้าต่าง">ปิด</button>
+      </div>
+
+      <div class="form-field">
+        <label for="input-customer-name">ชื่อแสดงของลูกค้า</label>
+        <input id="input-customer-name" class="field-input" type="text" required maxlength="120" placeholder="เช่น คุณสุพิศรา (iPhone 15 Pro)">
+      </div>
+
+      <div class="form-field">
+        <label for="input-service-mode">รูปแบบบริการ (Service Mode)</label>
+        <select id="input-service-mode" class="field-input">
+          <option value="copy_only">copy_only — สำเนาไป Google Photos (ไม่ลบภาพเดิมใน iCloud)</option>
+          <option value="move_free_space">move_free_space — ย้ายขึ้น Google Photos + ล้างพื้นที่ iCloud (5-Lock Gate)</option>
+          <option value="move_and_export">move_and_export — ย้ายขึ้น Google Photos + ส่งออกฮาร์ดดิสก์ + ล้างพื้นที่</option>
+        </select>
+      </div>
+
+      <div class="form-row-two">
+        <div class="form-field">
+          <label for="input-album-prefix">คำนำหน้าชื่ออัลบั้ม Google Photos</label>
+          <input id="input-album-prefix" class="field-input" type="text" required maxlength="80" value="iCloud_Archive_Google">
+        </div>
+        <div class="form-field">
+          <label for="input-target-years">ปี ค.ศ. เป้าหมาย (ไม่บังคับ)</label>
+          <input id="input-target-years" class="field-input" type="text" placeholder="เช่น 2018, 2019, 2020">
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label for="input-staging-drive">ไดรฟ์พักไฟล์ชั่วคราว (Staging Drive — ห้ามใช้ OneDrive)</label>
+        <input id="input-staging-drive" class="field-input" type="text" value="D:\MigrationJobs" placeholder="D:\MigrationJobs">
+      </div>
+
+      <div id="create-form-error" class="form-error hidden" role="alert"></div>
+
+      <div class="modal-actions">
+        <button id="btn-cancel-create" class="btn btn-ghost" type="button">ยกเลิก</button>
+        <button id="btn-submit-create" class="btn btn-primary" type="submit">สร้างงานและออกลิงก์ LINE</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/ui/app.js" defer></script>
+</body>
+</html>
